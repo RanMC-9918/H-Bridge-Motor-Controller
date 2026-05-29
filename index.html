@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motor Control</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0c;
+    --panel: #111116;
+    --border: #222230;
+    --accent: #00e5ff;
+    --danger: #ff2d55;
+    --warn: #ffb700;
+    --text: #e0e8f0;
+    --dim: #445;
+    --glow: 0 0 18px rgba(0,229,255,0.35);
+    --glow-danger: 0 0 22px rgba(255,45,85,0.5);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 36px;
+    padding: 32px 16px;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(0,229,255,0.03) 40px),
+      repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(0,229,255,0.03) 40px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px 40px;
+    width: min(440px, 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    box-shadow: 0 0 0 1px rgba(0,229,255,0.05), 0 24px 80px rgba(0,0,0,0.6);
+  }
+
+  .header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2.4rem;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-shadow: var(--glow);
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--dim);
+    transition: background 0.3s, box-shadow 0.3s;
+  }
+  .dot.on { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+
+  .gauge-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .speed-display {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 4.5rem;
+    line-height: 1;
+    color: var(--accent);
+    text-shadow: var(--glow);
+    letter-spacing: 0.05em;
+    transition: color 0.2s, text-shadow 0.2s;
+    min-width: 6ch;
+    text-align: center;
+  }
+
+  .speed-display.negative { color: var(--warn); text-shadow: 0 0 18px rgba(255,183,0,0.4); }
+  .speed-display.braking  { color: var(--danger); text-shadow: var(--glow-danger); }
+
+  .speed-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    margin-top: -14px;
+  }
+
+  .slider-wrap {
+    width: 100%;
+    position: relative;
+    padding: 8px 0;
+  }
+
+  .slider-ticks {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 2px;
+    margin-bottom: 6px;
+  }
+
+  .tick {
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    outline: none;
+    cursor: grab;
+  }
+
+  input[type=range]:active { cursor: grabbing; }
+
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--warn), var(--dim) 50%, var(--accent));
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid var(--accent);
+    box-shadow: 0 0 12px rgba(0,229,255,0.5);
+    margin-top: -8px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  input[type=range]::-moz-range-track {
+    height: 6px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--warn), var(--dim) 50%, var(--accent));
+  }
+
+  input[type=range]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--text);
+    border: 3px solid var(--accent);
+    box-shadow: 0 0 12px rgba(0,229,255,0.5);
+  }
+
+  .slider-wrap.negative input[type=range]::-webkit-slider-thumb { border-color: var(--warn); box-shadow: 0 0 12px rgba(255,183,0,0.5); }
+  .slider-wrap.negative input[type=range]::-moz-range-thumb { border-color: var(--warn); }
+
+  .zero-btn {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 4px 14px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    align-self: center;
+  }
+
+  .zero-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .brake-btn {
+    width: 100%;
+    padding: 20px;
+    border: 2px solid var(--danger);
+    border-radius: 4px;
+    background: transparent;
+    color: var(--danger);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 0.18em;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.08s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .brake-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--danger);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .brake-btn span { position: relative; z-index: 1; }
+
+  .brake-btn:hover::before { opacity: 0.08; }
+  .brake-btn.active { background: var(--danger); color: #fff; box-shadow: var(--glow-danger); transform: scale(0.985); }
+  .brake-btn.active::before { opacity: 0; }
+
+  .telemetry {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .tele-item {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tele-label { font-size: 0.55rem; color: var(--dim); letter-spacing: 0.15em; }
+  .tele-val { font-size: 1rem; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>Motor Control</h1>
+    <div class="status-row">
+      <div class="dot" id="dot"></div>
+      <span id="status-text">DISCONNECTED</span>
+    </div>
+  </div>
+
+  <div class="gauge-section">
+    <div class="speed-display" id="speed-display">0.000</div>
+    <div class="speed-label">SPEED  [ -1.000 → +1.000 ]</div>
+
+    <div class="slider-wrap" id="slider-wrap">
+      <div class="slider-ticks">
+        <span class="tick">-1.0</span>
+        <span class="tick">-0.5</span>
+        <span class="tick">0</span>
+        <span class="tick">+0.5</span>
+        <span class="tick">+1.0</span>
+      </div>
+      <input type="range" id="slider" min="-1000" max="1000" value="0" step="1">
+    </div>
+
+    <button class="zero-btn" id="zero-btn">ZERO THROTTLE</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <button class="brake-btn" id="brake-btn"><span id="brake-label">BRAKE</span></button>
+
+  <div class="telemetry">
+    <div class="tele-item">
+      <span class="tele-label">DIRECTION</span>
+      <span class="tele-val" id="dir-val">NEUTRAL</span>
+    </div>
+    <div class="tele-item">
+      <span class="tele-label">BRAKE STATE</span>
+      <span class="tele-val" id="brake-val">OFF</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const slider = document.getElementById('slider');
+  const speedDisplay = document.getElementById('speed-display');
+  const sliderWrap = document.getElementById('slider-wrap');
+  const brakeBtn = document.getElementById('brake-btn');
+  const brakeLabel = document.getElementById('brake-label');
+  const zeroBtn = document.getElementById('zero-btn');
+  const dot = document.getElementById('dot');
+  const statusText = document.getElementById('status-text');
+  const dirVal = document.getElementById('dir-val');
+  const brakeVal = document.getElementById('brake-val');
+
+  let speed = 0;
+  let brake = false;
+  let ws;
+
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}?type=dashboard`);
+    ws.onopen = () => {
+      console.log('[ws] dashboard connected');
+      dot.classList.add('on');
+      statusText.textContent = 'CONNECTED';
+    };
+    ws.onclose = () => {
+      console.log('[ws] dashboard disconnected');
+      dot.classList.remove('on');
+      statusText.textContent = 'DISCONNECTED';
+      setTimeout(connect, 2000);
+    };
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      if (d.speed !== undefined) setSpeed(d.speed, false);
+      if (d.brake !== undefined) setBrake(d.brake, false);
+    };
+  }
+
+  function send(obj) {
+    if (ws && ws.readyState === 1) {
+      console.log('[ws] send', obj);
+      ws.send(JSON.stringify(obj));
+    }
+  }
+
+  function setSpeed(val, transmit = true) {
+    const nextSpeed = Math.max(-1, Math.min(1, val));
+    const changed = nextSpeed !== speed;
+    speed = nextSpeed;
+    if (changed) console.log('[ui] speed changed', speed);
+    slider.value = Math.round(speed * 1000);
+    const fmt = (speed >= 0 ? '+' : '') + speed.toFixed(3);
+    speedDisplay.textContent = fmt;
+    speedDisplay.className = 'speed-display' + (brake ? ' braking' : speed < 0 ? ' negative' : '');
+    sliderWrap.className = 'slider-wrap' + (speed < 0 ? ' negative' : '');
+    dirVal.textContent = speed > 0.001 ? 'FORWARD' : speed < -0.001 ? 'REVERSE' : 'NEUTRAL';
+    if (transmit) send({ speed });
+  }
+
+  function setBrake(val, transmit = true) {
+    const changed = val !== brake;
+    brake = val;
+    if (changed) console.log('[ui] brake changed', brake);
+    brakeBtn.classList.toggle('active', brake);
+    brakeLabel.textContent = brake ? 'BRAKING' : 'BRAKE';
+    brakeVal.textContent = brake ? 'ON' : 'OFF';
+    speedDisplay.className = 'speed-display' + (brake ? ' braking' : speed < 0 ? ' negative' : '');
+    if (transmit) send({ brake });
+  }
+
+  slider.addEventListener('input', () => setSpeed(parseInt(slider.value) / 1000));
+  brakeBtn.addEventListener('pointerdown', () => setBrake(true));
+  brakeBtn.addEventListener('pointerup', () => setBrake(false));
+  brakeBtn.addEventListener('pointerleave', () => { if (brake) setBrake(false); });
+  zeroBtn.addEventListener('click', () => setSpeed(0));
+
+  setSpeed(0, false);
+  connect();
+</script>
+</body>
+</html>
